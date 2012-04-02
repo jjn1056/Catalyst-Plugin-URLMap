@@ -60,7 +60,7 @@ common example is serving static files, as this is not something you normally
 want to subject to a full L<Catalyst> request cycle.  Here is how you might set
 this up with the current version of L<Catalyst>:
 
-C<myapp_web.psgi>
+Example file is C<myapp_web.psgi> in root of your L<Catalyst> application.
 
     #!/usr/bin/env plackup
 
@@ -116,7 +116,7 @@ the above mapping could be re-written as follows:
     __PACKAGE__->setup;
     __PACKAGE__->meta->make_immutable;
 
-Then your C<myapp_web.psgi> would simple become:
+Then your C<myapp_web.psgi> would simply become:
 
     #!/usr/bin/env plackup
 
@@ -204,7 +204,7 @@ you would do that:
     __PACKAGE__->config(
       'Plugin::URLMap', {
         '/one' => {
-          '/two' => { '+MyApp::PlackApp', %init_args },
+          '/two' => { '+MyApp::PlackApp', \%init_args },
         },
       });
 
