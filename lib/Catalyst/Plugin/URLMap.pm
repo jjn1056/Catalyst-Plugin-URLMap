@@ -6,6 +6,8 @@ use Plack::Util;
 use Plack::App::URLMap;
 use Scalar::Util 'blessed', 'weaken';
 
+our $VERSION = '0.001';
+
 my $from_plack_app = sub {
   my $app = shift;
   if($app->can('to_app')) {
