@@ -1,17 +1,5 @@
 # NAME
 
-    my ($app) = map {
-      $_->map('/' => $psgi);
-      $_->map('/static' => $static);
-      $_->to_app;
-    } Plack::App::URLMap->new;
-
-
-
-
-
-
-
 Catalyst::Plugin::URLMap - Mount a Plack application using Catalyst Configuration
 
 # SYNOPSIS

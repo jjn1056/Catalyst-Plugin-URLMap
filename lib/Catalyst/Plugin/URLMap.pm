@@ -65,15 +65,6 @@ around 'psgi_app', sub {
 
 =head1 NAME
 
-  my ($app) = map {
-    $_->map('/' => $psgi);
-    $_->map('/static' => $static);
-    $_->to_app;
-  } Plack::App::URLMap->new;
-
-
-
-
 Catalyst::Plugin::URLMap - Mount a Plack application using Catalyst Configuration
 
 =head1 SYNOPSIS
