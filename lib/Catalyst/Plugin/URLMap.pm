@@ -1,8 +1,78 @@
 package Catalyst::Plugin::URLMap;
 
+use Moose::Role;
+use namespace::autoclean;
+use Plack::Util;
+use Plack::App::URLMap;
+use Scalar::Util 'blessed', 'weaken';
+
+my $from_plack_app = sub {
+  my $app = shift;
+  if($app->can('to_app')) {
+    return $app->to_app;
+  } elsif($app->can('psgi_app')) {
+    return $app->psgi_app;
+  } else {
+    die ref($app). " is not a plack compatible application";
+  }
+};
+
+my ($do_mapping, $weakened_do_mapping);
+$do_mapping = $weakened_do_mapping = sub {
+  my ($psgi_app, %maps) = @_;
+
+  foreach my $url_part (keys %maps) {
+    my $target = $maps{$url_part};
+
+    if(ref $target eq 'CODE') {
+      $psgi_app->map($url_part, $target);
+    } elsif(blessed $target) {
+      $psgi_app->map($url_part, $from_plack_app->($target));
+    } elsif(ref $target eq 'HASH') {
+      if( (%$target)[0] =~m/^\//) {
+        my $localmap = Plack::App::URLMap->new;
+        weaken $weakened_do_mapping;
+        $localmap = $weakened_do_mapping->($localmap, %$target);
+        $psgi_app->map($url_part, $localmap->to_app);
+      } else {
+        my ($module, $args) = %{$target};
+        my $normalized_module = Plack::Util::load_class($module, 'Plack::App');
+        $psgi_app->map($url_part, $from_plack_app->($normalized_module->new(%$args)));
+      }
+    } elsif($target) {
+      my $normalized_module = Plack::Util::load_class($target, 'Plack::App');
+      $psgi_app->map($url_part, $from_plack_app->($normalized_module->new));
+    } else {
+      die "I don't know how to map $target";
+    }
+  }
+
+  return $psgi_app;
+};
+
+around 'psgi_app', sub {
+  my ($orig, $self, @args) = @_;
+  my %maps = %{$self->config->{'Plugin::URLMap'}};
+
+  (my $psgi_app = Plack::App::URLMap->new)
+    ->map('/' => $self->$orig(@args));
+
+  return $do_mapping->($psgi_app, %maps)
+    ->to_app;
+};
+
 1;
 
 =head1 NAME
+
+  my ($app) = map {
+    $_->map('/' => $psgi);
+    $_->map('/static' => $static);
+    $_->to_app;
+  } Plack::App::URLMap->new;
+
+
+
 
 Catalyst::Plugin::URLMap - Mount a Plack application using Catalyst Configuration
 

@@ -20,7 +20,7 @@ __PACKAGE__->config(
     },
     '/dog', $dog,
     '/hello-world', sub {
-        return [200, 'Content-Type' => 'text/plain',
+        return [200, ['Content-Type' => 'text/plain'],
           ['hello world']] },
   },
 );
