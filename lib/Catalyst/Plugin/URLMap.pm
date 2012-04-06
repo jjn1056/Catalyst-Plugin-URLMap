@@ -5,8 +5,10 @@ use namespace::autoclean;
 use Plack::Util;
 use Plack::App::URLMap;
 use Scalar::Util 'blessed', 'weaken';
+use Catalyst::Utils;
+use Text::SimpleTable;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 my $from_plack_app = sub {
   my $app = shift;
@@ -21,31 +23,36 @@ my $from_plack_app = sub {
 
 my ($do_mapping, $weakened_do_mapping);
 $do_mapping = $weakened_do_mapping = sub {
-  my ($psgi_app, %maps) = @_;
+  my ($psgi_app, $t, $root, %maps) = @_;
 
   foreach my $url_part (keys %maps) {
     my $target = $maps{$url_part};
+    my $map_url = join ('', $root, $url_part);
 
     if(ref $target eq 'CODE') {
       $psgi_app->map($url_part, $target);
+      $t->row($map_url, 'CODE');
     } elsif(blessed $target) {
       $psgi_app->map($url_part, $from_plack_app->($target));
+      $t->row($map_url, ref $target);
     } elsif(ref $target eq 'HASH') {
       if( (%$target)[0] =~m/^\//) {
         my $localmap = Plack::App::URLMap->new;
         weaken $weakened_do_mapping;
-        $localmap = $weakened_do_mapping->($localmap, %$target);
+        $localmap = $weakened_do_mapping->($localmap, $t, $map_url, %$target);
         $psgi_app->map($url_part, $localmap->to_app);
       } else {
         my ($module, $args) = %{$target};
         my $normalized_module = Plack::Util::load_class($module, 'Plack::App');
         $psgi_app->map($url_part, $from_plack_app->($normalized_module->new(%$args)));
+        $t->row($map_url, $normalized_module);
       }
     } elsif($target) {
       my $normalized_module = Plack::Util::load_class($target, 'Plack::App');
       $psgi_app->map($url_part, $from_plack_app->($normalized_module->new));
+      $t->row($map_url, $normalized_module);
     } else {
-      die "I don't know how to map $target";
+      die "I don't know how to map $target to $map_url";
     }
   }
 
@@ -54,13 +61,22 @@ $do_mapping = $weakened_do_mapping = sub {
 
 around 'psgi_app', sub {
   my ($orig, $self, @args) = @_;
+  my $psgi_app = $self->$orig(@args);
+  return $psgi_app unless $self->config->{'Plugin::URLMap'};
+
   my %maps = %{$self->config->{'Plugin::URLMap'}};
+  (my $mapped_app = Plack::App::URLMap->new)
+    ->map('/' => $psgi_app);
 
-  (my $psgi_app = Plack::App::URLMap->new)
-    ->map('/' => $self->$orig(@args));
+  my $column_width = Catalyst::Utils::term_width() - 49;
+  my $t = Text::SimpleTable->new([40, 'Path'], [$column_width, 'Application']);
+  my $app =  $do_mapping->($mapped_app, $t, '', %maps)->to_app;
 
-  return $do_mapping->($psgi_app, %maps)
-    ->to_app;
+  if ($self->debug) {
+    $self->log->debug( "Loaded Plack Middleware:\n" . $t->draw . "\n" );
+  }
+
+  return $app;
 };
 
 1;
